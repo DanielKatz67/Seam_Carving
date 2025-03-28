@@ -95,12 +95,22 @@ class SeamImage:
             - np.gradient or other off-the-shelf tools are NOT allowed, however feel free to compare yourself to them
         """
         hor_grad, vert_grad = np.zeros((self.h, self.w)), np.zeros((self.h, self.w))
+
         # Horizontal gradient, x axis
         hor_grad[:, :-1] = self.resized_gs[:, 1:, 0] - self.resized_gs[:, :-1, 0]
+
+        # Handle last column using left neighbor
+        hor_grad[:, -1] = self.resized_gs[:, -1, 0] - self.resized_gs[:, -2, 0]
+
         # Vertical gradient, y axis
         vert_grad[:-1, :] = self.resized_gs[1:, :, 0] - self.resized_gs[:-1, :, 0]
+
+        # Handle last row using top neighbor
+        vert_grad[-1, :] = self.resized_gs[-1, :, 0] - self.resized_gs[-2, :, 0]
+
         # Calculate gradient magnitude
         grad_mag = (np.sqrt(hor_grad ** 2 + vert_grad ** 2))
+
         # Keep gradient values in range [0,1]
         grad_mag = np.clip(grad_mag, 0, 1)
 
