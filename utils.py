@@ -98,13 +98,11 @@ class SeamImage:
 
         # Horizontal gradient, x axis
         hor_grad[:, :-1] = self.resized_gs[:, 1:, 0] - self.resized_gs[:, :-1, 0]
-
         # Handle last column using left neighbor
         hor_grad[:, -1] = self.resized_gs[:, -1, 0] - self.resized_gs[:, -2, 0]
 
         # Vertical gradient, y axis
         vert_grad[:-1, :] = self.resized_gs[1:, :, 0] - self.resized_gs[:-1, :, 0]
-
         # Handle last row using top neighbor
         vert_grad[-1, :] = self.resized_gs[-1, :, 0] - self.resized_gs[-2, :, 0]
 
@@ -212,7 +210,11 @@ class SeamImage:
         """
         Rotates the matrices either clockwise or counter-clockwise.
         """
-        raise NotImplementedError("TODO: Implement SeamImage.rotate_mats")
+        k = -1 if clockwise else 1  # np.rot90 uses counter-clockwise rotation
+        self.rgb = np.rot90(self.rgb, k)
+
+        self.resized_rgb = np.rot90(self.resized_rgb, k)
+        self.E = np.rot90(self.E, k)
 
     @NI_decor
     def seams_removal_vertical(self, num_remove: int):
@@ -221,7 +223,7 @@ class SeamImage:
         Parameters:
             num_remove (int): umber of vertical seam to be removed
         """
-        raise NotImplementedError("TODO: Implement SeamImage.seams_removal_horizontal")
+        self.seams_removal(num_remove)  # Remove vertical seams
 
     @NI_decor
     def seams_removal_horizontal(self, num_remove: int):
@@ -230,7 +232,9 @@ class SeamImage:
         Parameters:
             num_remove (int): number of horizontal seam to be removed
         """
-        raise NotImplementedError("TODO: Implement SeamImage.seams_removal_horizontal")
+        self.rotate_mats(clockwise=True)  # Rotate to change horizontal to vertical
+        self.seams_removal_vertical(num_remove)  # Remove vertical seams
+        self.rotate_mats(clockwise=False)  # Rotate back to original orientation
 
     """
     BONUS SECTION
