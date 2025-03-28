@@ -117,7 +117,10 @@ class SeamImage:
 
     def update_ref_mat(self):
         for i, s in enumerate(self.seam_history[-1]):
-            self.idx_map[i, s:] += 1
+            # self.idx_map[i, s:] += 1
+            self.idx_map_h[i, s:] += 1
+            # TODO : Do they have a typo? self.idx_map is not defined
+
 
     def reinit(self):
         """
@@ -189,21 +192,25 @@ class SeamImage:
         :arg seam: The seam to remove
         """
         # Get image height and width
-        h, w, _ = self.rgb.shape
+        h, w, _ = self.resized_rgb.shape
 
-        # Create a mask that will exclude the seam pixels
-        mask = np.ones((h, w), dtype=bool)
-        for row, col in enumerate(seam):
-            mask[row, col] = False  # Mark seam pixel for removal
+        # New resized RGB image
+        resized_rgb = np.zeros((h, w - 1, 3), dtype=self.rgb.dtype)
+        resized_gs = np.zeros((h, w - 1, 1), dtype=self.resized_gs.dtype)
+        new_idx_map_h = np.zeros((h, w - 1), dtype=self.idx_map_h.dtype)
+        new_idx_map_v = np.zeros((h, w - 1), dtype=self.idx_map_v.dtype)
 
-        # Extend mask to 3D (for RGB)
-        mask_rgb = np.stack([mask] * 3, axis=2)
+        for i, col in enumerate(seam):
+            resized_rgb[i] = np.delete(self.rgb[i], col, axis=0)
+            resized_gs[i, :, 0] = np.delete(self.resized_gs[i, :, 0], col)
+            new_idx_map_h[i] = np.delete(self.idx_map_h[i], col)
+            new_idx_map_v[i] = np.delete(self.idx_map_v[i], col)
 
-        # Apply mask to RGB image and reshape to (h, w-1, 3)
-        resized_rgb = self.rgb[mask_rgb].reshape((h, w - 1, 3))
-
-        # Store the new image
+        # Update all relevant state
         self.resized_rgb = resized_rgb
+        self.resized_gs = resized_gs
+        self.idx_map_h = new_idx_map_h
+        self.idx_map_v = new_idx_map_v
 
     @NI_decor
     def rotate_mats(self, clockwise: bool):
