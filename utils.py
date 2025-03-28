@@ -75,10 +75,8 @@ class SeamImage:
         """
         # Pad the image with 0.5 to prevent outliers
         padded_image = np.pad(np_img, ((1, 1), (1, 1), (0, 0)), mode='constant', constant_values=0.5)
-
         # Convert the image to grayscale
         greyscale_padded_image = np.dot(padded_image[..., :3], self.gs_weights)
-
         # Back to the original shape
         greyscale_image = greyscale_padded_image[1:-1, 1:-1]
 
@@ -97,16 +95,12 @@ class SeamImage:
             - np.gradient or other off-the-shelf tools are NOT allowed, however feel free to compare yourself to them
         """
         hor_grad, vert_grad = np.zeros((self.h, self.w)), np.zeros((self.h, self.w))
-
         # Horizontal gradient, x axis
         hor_grad[:, :-1] = self.resized_gs[:, 1:, 0] - self.resized_gs[:, :-1, 0]
-
         # Vertical gradient, y axis
         vert_grad[:-1, :] = self.resized_gs[1:, :, 0] - self.resized_gs[:-1, :, 0]
-
         # Calculate gradient magnitude
         grad_mag = (np.sqrt(hor_grad ** 2 + vert_grad ** 2))
-
         # Keep gradient values in range [0,1]
         grad_mag = np.clip(grad_mag, 0, 1)
 
