@@ -260,7 +260,27 @@ class GreedySeamImage(SeamImage):
         The first pixel of the seam should be the pixel with the lowest cost.
         Every row chooses the next pixel based on which neighbor has the lowest cost.
         """
-        raise NotImplementedError("TODO: Implement GreedySeamImage.find_minimal_seam")
+        h, w = self.E.shape  # Image dimensions
+        seam = np.zeros(h, dtype=int)  # Store seam column indices
+
+        # Start from the lowest-energy pixel in the first row
+        seam[0] = np.argmin(self.E[0])
+
+        # Create index arrays for left, center, and right neighbors
+        j_indices = np.arange(w)  # Column indices
+
+        for i in range(1, h):
+            j = seam[i - 1]  # Previous row's column index
+
+            # Create a 3-element window for left, center, right neighbors
+            left = np.maximum(j - 1, 0)  # Stay in bounds
+            right = np.minimum(j + 1, w - 1)  # Stay in bounds
+            neighbors = self.E[i, [left, j, right]]  # Collect energy values
+
+            move = np.argmin(neighbors) - 1  # Convert [0,1,2] → [-1,0,+1]
+            seam[i] = j + move  # Update seam path
+
+        return seam.tolist()
 
 
 class DPSeamImage(SeamImage):
