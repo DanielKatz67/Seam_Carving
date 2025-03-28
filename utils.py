@@ -190,7 +190,22 @@ class SeamImage:
 
         :arg seam: The seam to remove
         """
-        raise NotImplementedError("TODO: Implement SeamImage.remove_seam")
+        # Get image height and width
+        h, w, _ = self.rgb.shape
+
+        # Create a mask that will exclude the seam pixels
+        mask = np.ones((h, w), dtype=bool)
+        for row, col in enumerate(seam):
+            mask[row, col] = False  # Mark seam pixel for removal
+
+        # Extend mask to 3D (for RGB)
+        mask_rgb = np.stack([mask] * 3, axis=2)
+
+        # Apply mask to RGB image and reshape to (h, w-1, 3)
+        resized_rgb = self.rgb[mask_rgb].reshape((h, w - 1, 3))
+
+        # Store the new image
+        self.resized_rgb = resized_rgb
 
     @NI_decor
     def rotate_mats(self, clockwise: bool):
