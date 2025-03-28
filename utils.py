@@ -96,7 +96,21 @@ class SeamImage:
             - keep in mind that values must be in range [0,1]
             - np.gradient or other off-the-shelf tools are NOT allowed, however feel free to compare yourself to them
         """
-        raise NotImplementedError("TODO: Implement SeamImage.calc_gradient_magnitude")
+        hor_grad, vert_grad = np.zeros((self.h, self.w)), np.zeros((self.h, self.w))
+
+        # Horizontal gradient, x axis
+        hor_grad[:, :-1] = self.resized_gs[:, 1:, 0] - self.resized_gs[:, :-1, 0]
+
+        # Vertical gradient, y axis
+        vert_grad[:-1, :] = self.resized_gs[1:, :, 0] - self.resized_gs[:-1, :, 0]
+
+        # Calculate gradient magnitude
+        grad_mag = (np.sqrt(hor_grad ** 2 + vert_grad ** 2))
+
+        # Keep gradient values in range [0,1]
+        grad_mag = np.clip(grad_mag, 0, 1)
+
+        return grad_mag.astype(np.float32)
 
 
     def update_ref_mat(self):
