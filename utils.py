@@ -94,7 +94,8 @@ class SeamImage:
             - keep in mind that values must be in range [0,1]
             - np.gradient or other off-the-shelf tools are NOT allowed, however feel free to compare yourself to them
         """
-        hor_grad, vert_grad = np.zeros((self.h, self.w)), np.zeros((self.h, self.w))
+        h, w = self.resized_gs.shape[:2]
+        hor_grad, vert_grad = np.zeros((h, w)), np.zeros((h, w))
 
         # Horizontal gradient, x axis
         hor_grad[:, :-1] = self.resized_gs[:, 1:, 0] - self.resized_gs[:, :-1, 0]
@@ -117,10 +118,7 @@ class SeamImage:
 
     def update_ref_mat(self):
         for i, s in enumerate(self.seam_history[-1]):
-            # self.idx_map[i, s:] += 1
-            self.idx_map_h[i, s:] += 1
-        # TODO : Do they have a typo? self.idx_map is not defined
-
+            self.idx_map[i, s:] += 1
 
     def reinit(self):
         """
@@ -190,22 +188,16 @@ class SeamImage:
 
         :arg seam: The seam to remove
         """
-        # Get image height and width
-        h, w, _ = self.rgb.shape
+        self.w -= 1
 
-        # Create a mask that will exclude the seam pixels
-        mask = np.ones((h, w), dtype=bool)
         for row, col in enumerate(seam):
-            mask[row, col] = False  # Mark seam pixel for removal
+            self.mask[row, col] = False  # Mark seam pixel for removal
 
-        # Extend mask to 3D (for RGB)
-        mask_rgb = np.stack([mask] * 3, axis=2)
+        self.idx_map_h = self.idx_map_h[:, :-1]
 
-        # Apply mask to RGB image and reshape to (h, w-1, 3)
-        resized_rgb = self.rgb[mask_rgb].reshape((h, w - 1, 3))
-
-        # Store the new image
-        self.resized_rgb = resized_rgb
+        self.resized_gs = self.resized_gs[self.mask].reshape((self.h, self.w, 1))
+        mask_3d = np.stack([self.mask] * 3, axis=2)
+        self.resized_rgb = self.resized_rgb[mask_3d].reshape((self.h, self.w, 3))
 
     @NI_decor
     def rotate_mats(self, clockwise: bool):
@@ -213,13 +205,13 @@ class SeamImage:
         Rotates the matrices either clockwise or counter-clockwise.
         """
         rotate = -1 if clockwise else 1  # np.rot90 rotates counter-clockwise by default
-        self.resized_gs = np.rot90(self.resized_gs, k=rotate, axes=(0, 1))
-        self.resized_rgb = np.rot90(self.resized_rgb, k=rotate, axes=(0, 1))
-        self.cumm_mask = np.rot90(self.cumm_mask, k=rotate, axes=(0, 1))
-        self.seams_rgb = np.rot90(self.seams_rgb, k=rotate, axes=(0, 1))
+        self.resized_gs = np.rot90(self.resized_gs, k=rotate)
+        self.resized_rgb = np.rot90(self.resized_rgb, k=rotate)
+        self.cumm_mask = np.rot90(self.cumm_mask, k=rotate)
+        self.seams_rgb = np.rot90(self.seams_rgb, k=rotate)
         self.E = np.rot90(self.E, rotate)
         self.idx_map_h = np.rot90(self.idx_map_h, rotate)
-        self.idx_map_v = np.rot90(self.idx_map_v, -rotate)
+        self.idx_map_v = np.rot90(self.idx_map_v, rotate)
         self.h, self.w = self.w, self.h
         self.idx_map_h, self.idx_map_v = self.idx_map_v, self.idx_map_h
 
@@ -231,6 +223,7 @@ class SeamImage:
         Parameters:
             num_remove (int): umber of vertical seam to be removed
         """
+        self.idx_map = self.idx_map_h
         self.seams_removal(num_remove)  # Remove vertical seams
 
     @NI_decor
