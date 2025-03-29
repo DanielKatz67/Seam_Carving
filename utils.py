@@ -302,9 +302,6 @@ class GreedySeamImage(SeamImage):
         # Start from the lowest-energy pixel in the first row
         seam[0] = np.argmin(self.E[0])
 
-        # Create index arrays for left, center, and right neighbors
-        j_indices = np.arange(w)  # Column indices
-
         for i in range(1, h):
             j = seam[i - 1]  # Previous row's column index
 
@@ -314,7 +311,7 @@ class GreedySeamImage(SeamImage):
             neighbors = self.E[i, [left, j, right]]  # Collect energy values
 
             move = np.argmin(neighbors) - 1  # Convert [0,1,2] → [-1,0,+1]
-            seam[i] = j + move  # Update seam path
+            seam[i] = min(max(j + move, 0), w - 1)  # Ensure within bounds and update seam value
 
         return seam.tolist()
 
