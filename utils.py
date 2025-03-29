@@ -118,7 +118,7 @@ class SeamImage:
 
     def update_ref_mat(self):
         for i, s in enumerate(self.seam_history[-1]):
-            self.idx_map[i, s:] += 1
+            self.idx_map[i, s:] = np.roll(self.idx_map[i, s:], -1)
 
     def reinit(self):
         """
@@ -130,12 +130,25 @@ class SeamImage:
     def load_image(img_path, format='RGB'):
         return np.asarray(Image.open(img_path).convert(format)).astype('float32') / 255.0
 
+    # def paint_seams(self):
+    #     for s in self.seam_history:
+    #         for i, s_i in enumerate(s):
+    #             self.cumm_mask[self.idx_map_v[i,s_i], self.idx_map_h[i,s_i]] = False
+    #     cumm_mask_rgb = np.stack([self.cumm_mask] * 3, axis=2)
+    #     self.seams_rgb = np.where(cumm_mask_rgb, self.seams_rgb, [1,0,0])
+
+    def update_cumm_mask(self):
+        """ Updates cumm_mask with current seam """
+        seam = self.seam_history[-1]
+        for row, col in enumerate(seam):
+            col_idx = self.idx_map_h[row, col]
+            row_idx = self.idx_map_v[row, col]
+            self.cumm_mask[row_idx, col_idx] = False
+
     def paint_seams(self):
-        for s in self.seam_history:
-            for i, s_i in enumerate(s):
-                self.cumm_mask[self.idx_map_v[i,s_i], self.idx_map_h[i,s_i]] = False
+        """ Paints seams according to cumm_mask """
         cumm_mask_rgb = np.stack([self.cumm_mask] * 3, axis=2)
-        self.seams_rgb = np.where(cumm_mask_rgb, self.seams_rgb, [1,0,0])
+        self.seams_rgb = np.where(cumm_mask_rgb, self.seams_rgb, [1, 0, 0])
 
     def seams_removal(self, num_remove: int):
         """ Iterates num_remove times and removes num_remove vertical seams
@@ -164,9 +177,16 @@ class SeamImage:
 
             seam = self.find_minimal_seam()
             self.seam_history.append(seam)
+
             if self.vis_seams:
+                self.update_cumm_mask()
                 self.update_ref_mat()
+
             self.remove_seam(seam)
+
+        if self.vis_seams:
+            self.paint_seams()
+
 
     @NI_decor
     def find_minimal_seam(self) -> List[int]:
@@ -192,8 +212,6 @@ class SeamImage:
 
         for row, col in enumerate(seam):
             self.mask[row, col] = False  # Mark seam pixel for removal
-
-        self.idx_map_h = self.idx_map_h[:, :-1]
 
         self.resized_gs = self.resized_gs[self.mask].reshape((self.h, self.w, 1))
         mask_3d = np.stack([self.mask] * 3, axis=2)
@@ -279,8 +297,18 @@ class SeamImage:
 
         raise NotImplementedError("TODO (Bonus): Implement SeamImage.seams_addition_vertical")
 
+
 class GreedySeamImage(SeamImage):
     """Implementation of the Seam Carving algorithm using a greedy approach"""
+    def __init__(self, *args, **kwargs):
+        """ GreedySeamImage initialization.
+        """
+        super().__init__(*args, **kwargs)
+        try:
+            self.cumm_mask = np.ones(self.gs.shape[:2], dtype=bool)  # (h, w) shape
+        except NotImplementedError as e:
+            print(e)
+
     @NI_decor
     def find_minimal_seam(self) -> List[int]:
         """
