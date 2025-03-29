@@ -119,7 +119,7 @@ class SeamImage:
         for i, s in enumerate(self.seam_history[-1]):
             # self.idx_map[i, s:] += 1
             self.idx_map_h[i, s:] += 1
-            # TODO : Do they have a typo? self.idx_map is not defined
+        # TODO : Do they have a typo? self.idx_map is not defined
 
 
     def reinit(self):
@@ -179,7 +179,6 @@ class SeamImage:
         """
         raise NotImplementedError("TODO: Implement SeamImage.find_minimal_seam in one of the subclasses")
 
-
     @NI_decor
     def remove_seam(self, seam: List[int]):
         """ Removes a seam from self.rgb (you may create a resized version, like self.resized_rgb)
@@ -192,36 +191,38 @@ class SeamImage:
         :arg seam: The seam to remove
         """
         # Get image height and width
-        h, w, _ = self.resized_rgb.shape
+        h, w, _ = self.rgb.shape
 
-        # New resized RGB image
-        resized_rgb = np.zeros((h, w - 1, 3), dtype=self.rgb.dtype)
-        resized_gs = np.zeros((h, w - 1, 1), dtype=self.resized_gs.dtype)
-        new_idx_map_h = np.zeros((h, w - 1), dtype=self.idx_map_h.dtype)
-        new_idx_map_v = np.zeros((h, w - 1), dtype=self.idx_map_v.dtype)
+        # Create a mask that will exclude the seam pixels
+        mask = np.ones((h, w), dtype=bool)
+        for row, col in enumerate(seam):
+            mask[row, col] = False  # Mark seam pixel for removal
 
-        for i, col in enumerate(seam):
-            resized_rgb[i] = np.delete(self.rgb[i], col, axis=0)
-            resized_gs[i, :, 0] = np.delete(self.resized_gs[i, :, 0], col)
-            new_idx_map_h[i] = np.delete(self.idx_map_h[i], col)
-            new_idx_map_v[i] = np.delete(self.idx_map_v[i], col)
+        # Extend mask to 3D (for RGB)
+        mask_rgb = np.stack([mask] * 3, axis=2)
 
-        # Update all relevant state
+        # Apply mask to RGB image and reshape to (h, w-1, 3)
+        resized_rgb = self.rgb[mask_rgb].reshape((h, w - 1, 3))
+
+        # Store the new image
         self.resized_rgb = resized_rgb
-        self.resized_gs = resized_gs
-        self.idx_map_h = new_idx_map_h
-        self.idx_map_v = new_idx_map_v
 
     @NI_decor
     def rotate_mats(self, clockwise: bool):
         """
         Rotates the matrices either clockwise or counter-clockwise.
         """
-        k = -1 if clockwise else 1  # np.rot90 uses counter-clockwise rotation
-        self.rgb = np.rot90(self.rgb, k)
+        rotate = -1 if clockwise else 1  # np.rot90 rotates counter-clockwise by default
+        self.resized_gs = np.rot90(self.resized_gs, k=rotate, axes=(0, 1))
+        self.resized_rgb = np.rot90(self.resized_rgb, k=rotate, axes=(0, 1))
+        self.cumm_mask = np.rot90(self.cumm_mask, k=rotate, axes=(0, 1))
+        self.seams_rgb = np.rot90(self.seams_rgb, k=rotate, axes=(0, 1))
+        self.E = np.rot90(self.E, rotate)
+        self.idx_map_h = np.rot90(self.idx_map_h, rotate)
+        self.idx_map_v = np.rot90(self.idx_map_v, -rotate)
+        self.h, self.w = self.w, self.h
+        self.idx_map_h, self.idx_map_v = self.idx_map_v, self.idx_map_h
 
-        self.resized_rgb = np.rot90(self.resized_rgb, k)
-        self.E = np.rot90(self.E, k)
 
     @NI_decor
     def seams_removal_vertical(self, num_remove: int):
