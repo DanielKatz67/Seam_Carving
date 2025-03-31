@@ -2,10 +2,8 @@ import numpy as np
 from PIL import Image
 from numba import jit
 from tqdm import tqdm
-from abc import abstractmethod, abstractstaticmethod
-from os.path import basename
 from typing import List
-import functools
+import copy
 
     
 def NI_decor(fn):
@@ -229,7 +227,7 @@ class SeamImage:
         self.seams_rgb = np.rot90(self.seams_rgb, k=rotate)
         self.E = np.rot90(self.E, rotate)
         self.idx_map_h = np.rot90(self.idx_map_h, rotate)
-        self.idx_map_v = np.rot90(self.idx_map_v, rotate)
+        self.idx_map_v = np.rot90(self.idx_map_v, -rotate)
         self.h, self.w = self.w, self.h
         self.idx_map_h, self.idx_map_v = self.idx_map_v, self.idx_map_h
 
@@ -333,7 +331,7 @@ class GreedySeamImage(SeamImage):
             neighbors = self.E[i, [left, j, right]]  # Collect energy values
 
             move = np.argmin(neighbors) - 1  # Convert [0,1,2] → [-1,0,+1]
-            seam[i] = min(max(j + move, 0), w - 1)  # Ensure within bounds and update seam value
+            seam[i] = min(max(j + move, 0), w - 1)  # Ensure within bounds and update seam vרקצםהק דקשalue
 
         return seam.tolist()
 
@@ -347,6 +345,8 @@ class DPSeamImage(SeamImage):
         """
         super().__init__(*args, **kwargs)
         try:
+            self.cumm_mask = np.ones(self.gs.shape[:2], dtype=bool)  # (h, w) shape
+            self.backtrack_mat = np.zeros_like(self.E, dtype=int)
             self.M = self.calc_M()
         except NotImplementedError as e:
             print(e)
@@ -367,7 +367,20 @@ class DPSeamImage(SeamImage):
             ii) fill in the backtrack matrix corresponding to M
             iii) seam backtracking: calculates the actual indices of the seam
         """
-        raise NotImplementedError("TODO: implement DPSeamImage.find_minimal_seam")
+        # Ensure M and backtrack_mat are up-to-date
+        self.init_mats()
+
+        h, w = self.M.shape
+        seam = np.zeros(h, dtype=np.int32)
+
+        # Step 1: Start from the last row - find the column with the minimum cumulative cost
+        seam[-1] = np.argmin(self.M[-1])
+
+        # Step 2: Backtrack from bottom to top using the backtrack matrix
+        for i in range(h - 2, -1, -1):
+            seam[i] = self.backtrack_mat[i + 1, seam[i + 1]]
+
+        return seam.tolist()
 
     @NI_decor
     def calc_M(self):
@@ -380,11 +393,75 @@ class DPSeamImage(SeamImage):
             As taught, the energy is calculated from top to bottom.
             You might find the function 'np.roll' useful.
         """
-        raise NotImplementedError("TODO: Implement DPSeamImage.calc_M")
+        # initialize M matrix
+        m = np.zeros_like(self.E)
+        # self.backtrack_mat = np.zeros_like(self.E, dtype=int)
+        m_h, m_w = m.shape
+        # Prepare an array of column indices
+        col_indices = np.arange(m_w)
+
+        # Calculates matrices C_L, C_V, C_R
+        c_l, c_v, c_r = self.calc_C()
+
+        # Initialize first row
+        m[0] = self.E[0]
+
+        # Calculate the M matrix from top to bottom
+        for i in range(1, m_h):
+            # The ith row of the M matrix is calculated based on the previous row
+            m_v = m[i - 1]
+            m_left = np.roll(m_v, 1)
+            m_right = np.roll(m_v, -1)
+
+            m_l_v_r = np.array([m_left, m_v, m_right])
+            cost_l_v_r = np.array([c_l[i], c_v[i], c_r[i]])
+            m_l_v_r += cost_l_v_r
+
+            # Calculate the minimum cost indices and values
+            min_cost_idx = np.argmin(m_l_v_r, axis=0)
+            min_cost = np.choose(min_cost_idx, m_l_v_r)
+            # Update the M matrix
+            m[i] = self.E[i] + min_cost
+
+            # Update the backtracking matrix
+            # Convert directions to actual column numbers
+            actual_col_num = col_indices + min_cost_idx - 1
+            # Ensure column numbers are within bounds
+            actual_col_num = np.clip(actual_col_num, 0, m_w - 1)
+            self.backtrack_mat[i] = actual_col_num
+
+        return m
+
+    @NI_decor
+    def calc_C(self):
+        """ Calculates the matrices C_L, C_V, C_R (forward-looking cost) for the M matrix
+        Returns:
+            C_L, C_V, C_R matrices (float32) of shape (h, w)
+        """
+        # Squeeze the greyscale image from (h, w, 1) to (h, w)
+        gs_img = self.resized_gs.squeeze()
+
+        # Calculate the cost of the new edges (forward-looking cost)
+        middle = np.roll(gs_img, 1, axis=0)
+        left = np.roll(gs_img, 1, axis=1)
+        right = np.roll(gs_img, -1, axis=1)
+
+        c_v = np.abs(right - left)
+        c_l = c_v + np.abs(middle - left)
+        c_r = c_v + np.abs(middle - right)
+        # Remove a pixel from the first column - no up-left pixel
+        c_l[:, 0] = np.inf
+        # Remove a pixel from the last column - no up-right pixel
+        c_r[:, -1] = np.inf
+
+        return c_l, c_v, c_r
 
     def init_mats(self):
+        """ Init E, backtrack_mat, M and mask (calculates E, backtrack_mat, M) """
+        self.E = self.calc_gradient_magnitude()
+        self.backtrack_mat = np.zeros_like(self.E, dtype=int)
         self.M = self.calc_M()
-        self.backtrack_mat = np.zeros_like(self.M, dtype=int)
+        self.mask = np.ones_like(self.M, dtype=bool)
 
     @staticmethod
     @jit(nopython=True)
@@ -414,7 +491,12 @@ def scale_to_shape(orig_shape: np.ndarray, scale_factors: list):
     Returns
         the new shape
     """
-    raise NotImplementedError("TODO: Implement scale_to_shape")
+    if len(orig_shape) != 2 or len(scale_factors) != 2:
+        raise ValueError("orig_shape and scale_factors must be 2D arrays")
+
+    new_h = int(orig_shape[0] * scale_factors[0])
+    new_w = int(orig_shape[1] * scale_factors[1])
+    return new_h, new_w
 
 
 def resize_seam_carving(seam_img: SeamImage, shapes: np.ndarray):
@@ -427,7 +509,31 @@ def resize_seam_carving(seam_img: SeamImage, shapes: np.ndarray):
     Returns
         the resized rgb image
     """
-    raise NotImplementedError("TODO: Implement resize_seam_carving")
+    # Check that shapes is 2D
+    if len(shapes) != 2:
+        raise ValueError("shapes must be a 2D array")
+
+    orig_shape, new_shape = shapes
+    if len(orig_shape) != 2 or len(new_shape) != 2:
+        raise ValueError("shapes must be a 2D array")
+
+    curr_h, curr_w = orig_shape
+    shape_h, shape_w = new_shape
+    vertical_seams_count = curr_w - shape_w
+    horizontal_seams_count = curr_h - shape_h
+
+    # Create a SeamImage copy
+    vertical_seam_image = copy.deepcopy(seam_img)
+
+    # Width Resizing - Remove Vertical Seams
+    if vertical_seams_count > 0:
+        vertical_seam_image.seams_removal_vertical(vertical_seams_count)
+
+    # Height Resizing - remove Horizontal Seams
+    if horizontal_seams_count > 0:
+        vertical_seam_image.seams_removal_horizontal(horizontal_seams_count)
+
+    return vertical_seam_image.resized_rgb
 
 
 def bilinear(image, new_shape):
@@ -441,6 +547,10 @@ def bilinear(image, new_shape):
     out_height, out_width = new_shape
     new_image = np.zeros(new_shape)
     ###Your code here###
+    def get_scaled_param(org, size_in, size_out):
+        scaled_org = (org * size_in) / size_out
+        scaled_org = min(scaled_org, size_in - 1)
+        return scaled_org
     def get_scaled_param(org, size_in, size_out):
         scaled_org = (org * size_in) / size_out
         scaled_org = min(scaled_org, size_in - 1)
