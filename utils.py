@@ -331,7 +331,7 @@ class GreedySeamImage(SeamImage):
             neighbors = self.E[i, [left, j, right]]  # Collect energy values
 
             move = np.argmin(neighbors) - 1  # Convert [0,1,2] → [-1,0,+1]
-            seam[i] = min(max(j + move, 0), w - 1)  # Ensure within bounds and update seam vרקצםהק דקשalue
+            seam[i] = min(max(j + move, 0), w - 1)  # Ensure within bounds and update seam value
 
         return seam.tolist()
 
