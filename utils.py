@@ -407,44 +407,36 @@ class DPSeamImage(SeamImage):
             As taught, the energy is calculated from top to bottom.
             You might find the function 'np.roll' useful.
         """
-        # initialize M matrix
-        m = np.zeros_like(self.E)
-        # self.backtrack_mat = np.zeros_like(self.E, dtype=int)
-        m_h, m_w = m.shape
-        # Prepare an array of column indices
-        col_indices = np.arange(m_w)
-
-        # Calculates matrices C_L, C_V, C_R
-        c_l, c_v, c_r = self.calc_C()
-
-        # Initialize first row
-        m[0] = self.E[0]
+        # Initialize
+        M = np.zeros_like(self.E)
+        m_high, m_width = M.shape
+        column_indices = np.arange(m_width)
+        C_l, C_v, C_r = self.calc_C()
+        M[0] = self.E[0]
 
         # Calculate the M matrix from top to bottom
-        for i in range(1, m_h):
-            # The ith row of the M matrix is calculated based on the previous row
-            m_v = m[i - 1]
-            m_left = np.roll(m_v, 1)
-            m_right = np.roll(m_v, -1)
+        for row in range(1, m_high):
+            # Each row of the M matrix is calculated based on the previous row
+            M_v = M[row - 1]
+            M_left = np.roll(M_v, 1)
+            M_right = np.roll(M_v, -1)
 
-            m_l_v_r = np.array([m_left, m_v, m_right])
-            cost_l_v_r = np.array([c_l[i], c_v[i], c_r[i]])
-            m_l_v_r += cost_l_v_r
+            M_l_v_r = np.array([M_left, M_v, M_right])
+            C_l_v_r = np.array([C_l[row], C_v[row], C_r[row]])
+            sum_M_C_l_v_r = M_l_v_r + C_l_v_r
 
             # Calculate the minimum cost indices and values
-            min_cost_idx = np.argmin(m_l_v_r, axis=0)
-            min_cost = np.choose(min_cost_idx, m_l_v_r)
+            min_cost_idx = np.argmin(sum_M_C_l_v_r, axis=0)
+            min_cost = np.choose(min_cost_idx, sum_M_C_l_v_r)
             # Update the M matrix
-            m[i] = self.E[i] + min_cost
+            M[row] = self.E[row] + min_cost
 
-            # Update the backtracking matrix
-            # Convert directions to actual column numbers
-            actual_col_num = col_indices + min_cost_idx - 1
-            # Ensure column numbers are within bounds
-            actual_col_num = np.clip(actual_col_num, 0, m_w - 1)
-            self.backtrack_mat[i] = actual_col_num
+            # Update the backtracking matrix : actual column numbers + Ensure columns are within bounds
+            actual_col_num = column_indices + min_cost_idx - 1
+            actual_col_num = np.clip(actual_col_num, 0, m_width - 1)
+            self.backtrack_mat[row] = actual_col_num
 
-        return m
+        return M
 
     @NI_decor
     def calc_C(self):
@@ -453,20 +445,19 @@ class DPSeamImage(SeamImage):
             C_L, C_V, C_R matrices (float32) of shape (h, w)
         """
         # Squeeze the greyscale image from (h, w, 1) to (h, w)
-        gs_img = self.resized_gs.squeeze()
+        gray_image = self.resized_gs.squeeze()
 
-        # Calculate the cost of the new edges (forward-looking cost)
-        middle = np.roll(gs_img, 1, axis=0)
-        left = np.roll(gs_img, 1, axis=1)
-        right = np.roll(gs_img, -1, axis=1)
+        # Calculate the cost of the new edges
+        left_cost = np.roll(gray_image, 1, axis=1)
+        middle_cost = np.roll(gray_image, 1, axis=0)
+        right_cost = np.roll(gray_image, -1, axis=1)
 
-        c_v = np.abs(right - left)
-        c_l = c_v + np.abs(middle - left)
-        c_r = c_v + np.abs(middle - right)
-        # Remove a pixel from the first column - no up-left pixel
-        c_l[:, 0] = np.inf
-        # Remove a pixel from the last column - no up-right pixel
-        c_r[:, -1] = np.inf
+        c_v = np.abs(right_cost - left_cost)
+        c_l = c_v + np.abs(middle_cost - left_cost)
+        c_r = c_v + np.abs(middle_cost - right_cost)
+
+        # Edge Handling (Inf at Borders) - no up-left pixel and no up-right pixel
+        c_l[:, 0] = c_r[:, -1] = np.inf
 
         return c_l, c_v, c_r
 
