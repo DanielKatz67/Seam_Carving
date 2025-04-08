@@ -409,13 +409,13 @@ class DPSeamImage(SeamImage):
         """
         # Initialize
         M = np.zeros_like(self.E)
-        m_high, m_width = M.shape
+        m_height, m_width = M.shape
         column_indices = np.arange(m_width)
         C_l, C_v, C_r = self.calc_C()
         M[0] = self.E[0]
 
         # Calculate the M matrix from top to bottom
-        for row in range(1, m_high):
+        for row in range(1, m_height):
             # Each row of the M matrix is calculated based on the previous row
             M_v = M[row - 1]
             M_left = np.roll(M_v, 1)
