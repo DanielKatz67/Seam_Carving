@@ -381,20 +381,22 @@ class DPSeamImage(SeamImage):
             ii) fill in the backtrack matrix corresponding to M
             iii) seam backtracking: calculates the actual indices of the seam
         """
-        # Ensure M and backtrack_mat are up-to-date
+        # Step 1: Make sure energy matrix M and the backtracking matrix are up-to-date
         self.init_mats()
 
         height, width = self.M.shape
-        seam = np.zeros(height, dtype=np.int32)
+        seam_path = np.zeros(height, dtype=np.int32)
 
-        # Step 1: Start from the last row - find the column with the minimum cumulative cost
-        seam[-1] = np.argmin(self.M[-1])
+        # Step 2: Start from the bottom row and find the column with the minimum energy
+        seam_path[-1] = np.argmin(self.M[-1])
 
-        # Step 2: Backtrack from bottom to top using the backtrack matrix
-        for i in range(height - 2, -1, -1):
-            seam[i] = self.backtrack_mat[i + 1, seam[i + 1]]
+        # Step 3: Backtrack the seam path from bottom to top
+        # At each step, use the backtracking matrix to find which column in the row above led to the current pixel
+        for row in range(height - 2, -1, -1):
+            next_col = seam_path[row + 1]                          # column in the row below
+            seam_path[row] = self.backtrack_mat[row + 1, next_col]
 
-        return seam.tolist()
+        return seam_path.tolist()
 
     @NI_decor
     def calc_M(self):
