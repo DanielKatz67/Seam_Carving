@@ -97,20 +97,23 @@ class SeamImage:
             - np.gradient or other off-the-shelf tools are NOT allowed, however feel free to compare yourself to them
         """
         h, w = self.resized_gs.shape[:2]
-        hor_grad, vert_grad = np.zeros((h, w)), np.zeros((h, w))
+        gs = self.resized_gs[:, :, 0]  # shape (h, w)
 
-        # Horizontal gradient, x axis
-        hor_grad[:, :-1] = self.resized_gs[:, 1:, 0] - self.resized_gs[:, :-1, 0]
+        hor_grad = np.zeros((h, w), dtype=np.float32)
+        vert_grad = np.zeros((h, w), dtype=np.float32)
+
+        # Forward difference on x-axis (horizontal)
+        hor_grad[:, :-1] = gs[:, 1:] - gs[:, :-1]
         # Handle last column using left neighbor
-        hor_grad[:, -1] = self.resized_gs[:, -1, 0] - self.resized_gs[:, -2, 0]
+        hor_grad[:, -1] = gs[:, -1] - gs[:, -2]
 
         # Vertical gradient, y axis
-        vert_grad[:-1, :] = self.resized_gs[1:, :, 0] - self.resized_gs[:-1, :, 0]
+        vert_grad[:-1, :] = gs[1:, :] - gs[:-1, :]
         # Handle last row using top neighbor
-        vert_grad[-1, :] = self.resized_gs[-1, :, 0] - self.resized_gs[-2, :, 0]
+        vert_grad[-1, :] = gs[-1, :] - gs[-2, :]
 
         # Calculate gradient magnitude
-        grad_mag = (np.sqrt(hor_grad ** 2 + vert_grad ** 2))
+        grad_mag = np.sqrt(hor_grad ** 2 + vert_grad ** 2)
 
         # Keep gradient values in range [0,1]
         grad_mag = np.clip(grad_mag, 0, 1)
