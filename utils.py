@@ -71,14 +71,18 @@ class SeamImage:
             Use NumpyPy vectorized matrix multiplication for high performance.
             To prevent outlier values in the boundaries, we recommend to pad them with 0.5
         """
-        # Pad the image with 0.5 to prevent outliers
-        padded_image = np.pad(np_img, ((1, 1), (1, 1), (0, 0)), mode='constant', constant_values=0.5)
-        # Convert the image to grayscale
-        greyscale_padded_image = np.dot(padded_image[..., :3], self.gs_weights)
-        # Back to the original shape
-        greyscale_image = greyscale_padded_image[1:-1, 1:-1]
+        h, w, _ = np_img.shape
 
-        return greyscale_image
+        # Pad the image with 0.5 to prevent outliers
+        rgb_padded = np.pad(np_img, ((1, 1), (1, 1), (0, 0)), mode='constant', constant_values=0.5)
+
+        # Convert the image to grayscale
+        grey_padded = np.dot(rgb_padded[..., :3], self.gs_weights)
+
+        # Back to the original shape
+        grey_image = grey_padded[1:-1, 1:-1].reshape(h, w, 1).astype(np.float32)
+
+        return grey_image
 
     @NI_decor
     def calc_gradient_magnitude(self):
@@ -316,24 +320,31 @@ class GreedySeamImage(SeamImage):
         The first pixel of the seam should be the pixel with the lowest cost.
         Every row chooses the next pixel based on which neighbor has the lowest cost.
         """
-        h, w = self.E.shape  # Image dimensions
-        seam = np.zeros(h, dtype=int)  # Store seam column indices
+        h, w = self.E.shape
+        seam = []
 
-        # Start from the lowest-energy pixel in the first row
-        seam[0] = np.argmin(self.E[0])
+        # Start from the top row, choose the column with the smallest energy
+        col = np.argmin(self.E[0])
+        seam.append(col)
 
-        for i in range(1, h):
-            j = seam[i - 1]  # Previous row's column index
+        # Iterate from top to bottom row
+        for row in range(1, h):
+            col_range = []
 
-            # Create a 3-element window for left, center, right neighbors
-            left = np.maximum(j - 1, 0)  # Stay in bounds
-            right = np.minimum(j + 1, w - 1)  # Stay in bounds
-            neighbors = self.E[i, [left, j, right]]  # Collect energy values
+            # Add valid neighbors: left, center, right
+            if col > 0:
+                col_range.append(col - 1)  # left
 
-            move = np.argmin(neighbors) - 1  # Convert [0,1,2] → [-1,0,+1]
-            seam[i] = min(max(j + move, 0), w - 1)  # Ensure within bounds and update seam value
+            col_range.append(col)  # center
 
-        return seam.tolist()
+            if col < w - 1:
+                col_range.append(col + 1)  # right
+
+            # Choose the neighbor with minimum energy
+            col = min(col_range, key=lambda c: self.E[row, c])
+            seam.append(col)
+
+        return seam
 
 
 class DPSeamImage(SeamImage):
