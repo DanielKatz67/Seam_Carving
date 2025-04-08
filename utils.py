@@ -462,7 +462,7 @@ class DPSeamImage(SeamImage):
         return c_l, c_v, c_r
 
     def init_mats(self):
-        """ Init E, backtrack_mat, M and mask (calculates E, backtrack_mat, M) """
+        """  Calculates backtrack_mat, M """
         self.backtrack_mat = np.zeros_like(self.E, dtype=int)
         self.M = self.calc_M()
 
