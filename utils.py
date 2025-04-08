@@ -384,14 +384,14 @@ class DPSeamImage(SeamImage):
         # Ensure M and backtrack_mat are up-to-date
         self.init_mats()
 
-        h, w = self.M.shape
-        seam = np.zeros(h, dtype=np.int32)
+        height, width = self.M.shape
+        seam = np.zeros(height, dtype=np.int32)
 
         # Step 1: Start from the last row - find the column with the minimum cumulative cost
         seam[-1] = np.argmin(self.M[-1])
 
         # Step 2: Backtrack from bottom to top using the backtrack matrix
-        for i in range(h - 2, -1, -1):
+        for i in range(height - 2, -1, -1):
             seam[i] = self.backtrack_mat[i + 1, seam[i + 1]]
 
         return seam.tolist()
@@ -463,10 +463,8 @@ class DPSeamImage(SeamImage):
 
     def init_mats(self):
         """ Init E, backtrack_mat, M and mask (calculates E, backtrack_mat, M) """
-        self.E = self.calc_gradient_magnitude()
         self.backtrack_mat = np.zeros_like(self.E, dtype=int)
         self.M = self.calc_M()
-        self.mask = np.ones_like(self.M, dtype=bool)
 
     @staticmethod
     @jit(nopython=True)
