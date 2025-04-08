@@ -499,9 +499,8 @@ def scale_to_shape(orig_shape: np.ndarray, scale_factors: list):
     if len(orig_shape) != 2 or len(scale_factors) != 2:
         raise ValueError("orig_shape and scale_factors must be 2D arrays")
 
-    new_h = int(orig_shape[0] * scale_factors[0])
-    new_w = int(orig_shape[1] * scale_factors[1])
-    return new_h, new_w
+    # new height, new width
+    return int(orig_shape[0] * scale_factors[0]), int(orig_shape[1] * scale_factors[1])
 
 
 def resize_seam_carving(seam_img: SeamImage, shapes: np.ndarray):
@@ -522,12 +521,11 @@ def resize_seam_carving(seam_img: SeamImage, shapes: np.ndarray):
     if len(orig_shape) != 2 or len(new_shape) != 2:
         raise ValueError("shapes must be a 2D array")
 
-    curr_h, curr_w = orig_shape
-    shape_h, shape_w = new_shape
-    vertical_seams_count = curr_w - shape_w
-    horizontal_seams_count = curr_h - shape_h
+    current_height, current_width = orig_shape
+    shape_height, shape_width = new_shape
+    vertical_seams_count = current_width - shape_width
+    horizontal_seams_count = current_height - shape_height
 
-    # Create a SeamImage copy
     vertical_seam_image = copy.deepcopy(seam_img)
 
     # Width Resizing - Remove Vertical Seams
@@ -550,29 +548,29 @@ def bilinear(image, new_shape):
     """
     in_height, in_width, _ = image.shape
     out_height, out_width = new_shape
-    new_image = np.zeros(new_shape)
-    ###Your code here###
+
     def get_scaled_param(org, size_in, size_out):
         scaled_org = (org * size_in) / size_out
         scaled_org = min(scaled_org, size_in - 1)
         return scaled_org
-    def get_scaled_param(org, size_in, size_out):
-        scaled_org = (org * size_in) / size_out
-        scaled_org = min(scaled_org, size_in - 1)
-        return scaled_org
+
     scaled_x_grid = [get_scaled_param(x,in_width,out_width) for x in range(out_width)]
     scaled_y_grid = [get_scaled_param(y,in_height,out_height) for y in range(out_height)]
+
     x1s = np.array(scaled_x_grid, dtype=int)
     y1s = np.array(scaled_y_grid,dtype=int)
     x2s = np.array(scaled_x_grid, dtype=int) + 1
     x2s[x2s > in_width - 1] = in_width - 1
     y2s = np.array(scaled_y_grid,dtype=int) + 1
     y2s[y2s > in_height - 1] = in_height - 1
+
     dx = np.reshape(scaled_x_grid - x1s, (out_width, 1))
     dy = np.reshape(scaled_y_grid - y1s, (out_height, 1))
     c1 = np.reshape(image[y1s][:,x1s] * dx + (1 - dx) * image[y1s][:,x2s], (out_width, out_height, 3))
     c2 = np.reshape(image[y2s][:,x1s] * dx + (1 - dx) * image[y2s][:,x2s], (out_width, out_height, 3))
+
     new_image = np.reshape(c1 * dy + (1 - dy) * c2, (out_height, out_width, 3)).astype(int)
+
     return new_image
 
 
