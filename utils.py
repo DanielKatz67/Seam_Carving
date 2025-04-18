@@ -92,11 +92,11 @@ class SeamImage:
         pad = np.pad(gs, ((1, 1), (1, 1)), mode='constant', constant_values=0.5)  # shape (h+2, w+2)
 
         # 2) compute forward-differences on the padded image, then slice interior
-        dx = pad[1:-1, 2:] - pad[1:-1, 1:-1]  # ∂/∂x, shape (h, w)
-        dy = pad[2:, 1:-1] - pad[1:-1, 1:-1]  # ∂/∂y, shape (h, w)
+        hor_grad = pad[1:-1, 2:] - pad[1:-1, 1:-1]  # ∂/∂x, shape (h, w)
+        vert_grad = pad[2:, 1:-1] - pad[1:-1, 1:-1]  # ∂/∂y, shape (h, w)
 
         # 3) gradient magnitude and clip to [0,1]
-        grad = np.sqrt(dx * dx + dy * dy)
+        grad = np.sqrt(hor_grad ** 2 + vert_grad ** 2)
         grad = np.clip(grad, 0, 1).astype(np.float32)
 
         return grad
