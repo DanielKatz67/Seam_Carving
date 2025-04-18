@@ -86,39 +86,20 @@ class SeamImage:
 
     @NI_decor
     def calc_gradient_magnitude(self):
-        """ Calculate gradient magnitude of a grayscale image
+        """ Calculate gradient magnitude of a grayscale image """
+        # 1) grab current grayscale and pad it
+        gs = self.resized_gs[..., 0]  # shape (h, w)
+        pad = np.pad(gs, ((1, 1), (1, 1)), mode='constant', constant_values=0.5)  # shape (h+2, w+2)
 
-        Returns:
-            A gradient magnitude image (float32) of shape (h, w)
+        # 2) compute forward-differences on the padded image, then slice interior
+        dx = pad[1:-1, 2:] - pad[1:-1, 1:-1]  # ∂/∂x, shape (h, w)
+        dy = pad[2:, 1:-1] - pad[1:-1, 1:-1]  # ∂/∂y, shape (h, w)
 
-        Guidelines & hints:
-            - In order to calculate a gradient of a pixel, only its neighborhood is required.
-            - keep in mind that values must be in range [0,1]
-            - np.gradient or other off-the-shelf tools are NOT allowed, however feel free to compare yourself to them
-        """
-        h, w = self.resized_gs.shape[:2]
-        gs = self.resized_gs[:, :, 0]  # shape (h, w)
+        # 3) gradient magnitude and clip to [0,1]
+        grad = np.sqrt(dx * dx + dy * dy)
+        grad = np.clip(grad, 0, 1).astype(np.float32)
 
-        hor_grad = np.zeros((h, w), dtype=np.float32)
-        vert_grad = np.zeros((h, w), dtype=np.float32)
-
-        # Forward difference on x-axis (horizontal)
-        hor_grad[:, :-1] = gs[:, 1:] - gs[:, :-1]
-        # Handle last column using left neighbor
-        hor_grad[:, -1] = gs[:, -1] - gs[:, -2]
-
-        # Vertical gradient, y axis
-        vert_grad[:-1, :] = gs[1:, :] - gs[:-1, :]
-        # Handle last row using top neighbor
-        vert_grad[-1, :] = gs[-1, :] - gs[-2, :]
-
-        # Calculate gradient magnitude
-        grad_mag = np.sqrt(hor_grad ** 2 + vert_grad ** 2)
-
-        # Keep gradient values in range [0,1]
-        grad_mag = np.clip(grad_mag, 0, 1)
-
-        return grad_mag.astype(np.float32)
+        return grad
 
 
     def update_ref_mat(self):
