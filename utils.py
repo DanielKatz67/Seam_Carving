@@ -259,7 +259,100 @@ class SeamImage:
             - Visualization: paint the added seams in green (0,255,0)
 
         """
-        raise NotImplementedError("TODO (Bonus): Implement SeamImage.seams_addition")
+        original_rgb = self.resized_rgb.copy()
+        original_gs = self.resized_gs.copy()
+        original_h, original_w = self.resized_rgb.shape[:2]
+
+        seams_to_add = self._collect_seams_for_addition(num_add)
+
+        self._restore_original(original_rgb, original_gs, original_h, original_w)
+
+        for seam in seams_to_add:
+            self._insert_single_seam(seam)
+
+        if self.vis_seams:
+            self._paint_seams_in_green(seams_to_add)
+
+    def _collect_seams_for_addition(self, num_add: int) -> List[List[int]]:
+        seams_to_add = []
+        temp_img = copy.deepcopy(self)
+        temp_img.vis_seams = False  # Avoid red seam painting
+        temp_img.E = temp_img.calc_gradient_magnitude()
+
+        # Ensure idx_map is valid and matches resized shape
+        temp_img.idx_map = np.tile(np.arange(temp_img.w), (temp_img.h, 1))
+
+        for _ in range(num_add):
+            seam = temp_img.find_minimal_seam()
+
+            # Map seam to original column indices using temp's idx_map_h
+            # seam_original = []
+            # for row, col in enumerate(seam):
+            #     h_, w_ = temp_img.idx_map.shape
+            #     if not (0 <= row < h_) or not (0 <= col < w_):
+            #         raise IndexError(
+            #             f"[DEBUG] Out-of-bounds access at ({row},{col}) with idx_map shape {temp_img.idx_map.shape}")
+            #     seam_original.append(temp_img.idx_map[row, col])
+            seam_original = [temp_img.idx_map[row, col] for row, col in enumerate(seam)]
+            seams_to_add.append(seam_original)
+
+            # Instead of removing the seam, increase energy in the current seam so it's not picked again
+            for row, col in enumerate(seam):
+                temp_img.E[row, col] = 1e6  # or np.inf — any large number to discourage reuse
+
+        # Sort seams to avoid insertion conflicts
+        seams_sorted = sorted(seams_to_add, key=lambda s: [i + 0.01 * s[i] for i in range(len(s))])
+        return seams_sorted
+
+    def _restore_original(self, rgb, gs, h, w):
+        self.resized_rgb = rgb
+        self.resized_gs = gs
+        self.h, self.w = h, w
+
+        # Update seams_rgb to match new shape if needed
+        if self.vis_seams:
+            self.seams_rgb = self.resized_rgb.copy()
+
+    def _insert_single_seam(self, seam: List[int]):
+        """
+        Inserts a single vertical seam into the image
+        """
+        h, w, _ = self.resized_rgb.shape
+        new_rgb = np.zeros((h, w + 1, 3), dtype=self.resized_rgb.dtype)
+        new_gs = np.zeros((h, w + 1, 1), dtype=self.resized_gs.dtype)
+
+        for row in range(h):
+            col = seam[row]
+
+            # RGB channels
+            for c in range(3):
+                if col == w - 1:
+                    new_rgb[row, :-1, c] = self.resized_rgb[row, :, c]
+                    new_rgb[row, -1, c] = self.resized_rgb[row, -1, c]
+                else:
+                    avg = (self.resized_rgb[row, col, c] + self.resized_rgb[row, col + 1, c]) / 2
+                    new_rgb[row, :col + 1, c] = self.resized_rgb[row, :col + 1, c]
+                    new_rgb[row, col + 1, c] = avg
+                    new_rgb[row, col + 2:, c] = self.resized_rgb[row, col + 1:, c]
+
+            # Grayscale
+            if col == w - 1:
+                new_gs[row, :-1, 0] = self.resized_gs[row, :, 0]
+                new_gs[row, -1, 0] = self.resized_gs[row, -1, 0]
+            else:
+                avg_gs = (self.resized_gs[row, col, 0] + self.resized_gs[row, col + 1, 0]) / 2
+                new_gs[row, :col + 1, 0] = self.resized_gs[row, :col + 1, 0]
+                new_gs[row, col + 1, 0] = avg_gs
+                new_gs[row, col + 2:, 0] = self.resized_gs[row, col + 1:, 0]
+
+        self.resized_rgb = new_rgb
+        self.resized_gs = new_gs
+        self.h, self.w = self.resized_rgb.shape[:2]
+
+    def _paint_seams_in_green(self, seams: List[List[int]]):
+        for seam in seams:
+            for row, col in enumerate(seam):
+                self.seams_rgb[row, col] = [0, 1, 0]
 
     @NI_decor
     def seams_addition_horizontal(self, num_add: int):
@@ -272,7 +365,9 @@ class SeamImage:
             You may find np.rot90 function useful
 
         """
-        raise NotImplementedError("TODO (Bonus): Implement SeamImage.seams_addition_horizontal")
+        self.rotate_mats(clockwise=True)
+        self.seams_addition_vertical(num_add)
+        self.rotate_mats(clockwise=False)
 
     @NI_decor
     def seams_addition_vertical(self, num_add: int):
@@ -281,8 +376,8 @@ class SeamImage:
         Parameters:
             num_add (int): number of vertical seam to be added
         """
-
-        raise NotImplementedError("TODO (Bonus): Implement SeamImage.seams_addition_vertical")
+        self.idx_map = self.idx_map_h
+        self.seams_addition(num_add)
 
 
 class GreedySeamImage(SeamImage):
