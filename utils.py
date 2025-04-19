@@ -117,13 +117,6 @@ class SeamImage:
     def load_image(img_path, format='RGB'):
         return np.asarray(Image.open(img_path).convert(format)).astype('float32') / 255.0
 
-    # def paint_seams(self):
-    #     for s in self.seam_history:
-    #         for i, s_i in enumerate(s):
-    #             self.cumm_mask[self.idx_map_v[i,s_i], self.idx_map_h[i,s_i]] = False
-    #     cumm_mask_rgb = np.stack([self.cumm_mask] * 3, axis=2)
-    #     self.seams_rgb = np.where(cumm_mask_rgb, self.seams_rgb, [1,0,0])
-
     def update_cumm_mask(self):
         """ Updates cumm_mask with current seam """
         seam = self.seam_history[-1]
@@ -273,7 +266,7 @@ class SeamImage:
         if self.vis_seams:
             self._paint_seams_in_green(seams_to_add)
 
-    def _collect_seams_for_addition(self, num_add: int) -> List[List[int]]:
+    def _collect_seams_for_addition(self, num_add: int):
         seams_to_add = []
         temp_img = copy.deepcopy(self)
         temp_img.vis_seams = False  # Avoid red seam painting
@@ -284,15 +277,6 @@ class SeamImage:
 
         for _ in range(num_add):
             seam = temp_img.find_minimal_seam()
-
-            # Map seam to original column indices using temp's idx_map_h
-            # seam_original = []
-            # for row, col in enumerate(seam):
-            #     h_, w_ = temp_img.idx_map.shape
-            #     if not (0 <= row < h_) or not (0 <= col < w_):
-            #         raise IndexError(
-            #             f"[DEBUG] Out-of-bounds access at ({row},{col}) with idx_map shape {temp_img.idx_map.shape}")
-            #     seam_original.append(temp_img.idx_map[row, col])
             seam_original = [temp_img.idx_map[row, col] for row, col in enumerate(seam)]
             seams_to_add.append(seam_original)
 
@@ -302,6 +286,7 @@ class SeamImage:
 
         # Sort seams to avoid insertion conflicts
         seams_sorted = sorted(seams_to_add, key=lambda s: [i + 0.01 * s[i] for i in range(len(s))])
+
         return seams_sorted
 
     def _restore_original(self, rgb, gs, h, w):
